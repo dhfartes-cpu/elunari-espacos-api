@@ -1,7 +1,17 @@
-import { kv } from '@vercel/kv';
+import { createClient } from 'redis';
 
 const CHAVE_RESERVAS = 'elunari:espacos:reservas';
 const SENHA_ADMIN = '9999';
+
+async function getRedisClient() {
+    const url = process.env.STORAGE_URL || process.env.REDIS_URL || process.env.KV_URL;
+    if (!url) {
+        throw new Error('URL do banco de dados não encontrada nas variáveis da Vercel.');
+    }
+    const client = createClient({ url });
+    await client.connect();
+    return client;
+}
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -12,9 +22,13 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
+    let client;
     try {
+        client = await getRedisClient();
+
         if (req.method === 'GET') {
-            const reservas = (await kv.get(CHAVE_RESERVAS)) || [];
+            const dadosStr = await client.get(CHAVE_RESERVAS);
+            const reservas = dadosStr ? JSON.parse(dadosStr) : [];
             const reservasPublicas = reservas.map(({ pin, ...resto }) => resto);
             return res.status(200).json({ sucesso: true, dados: reservasPublicas });
         }
@@ -26,7 +40,8 @@ export default async function handler(req, res) {
                 return res.status(400).json({ sucesso: false, erro: 'Preencha todos os campos e selecione pelo menos um período.' });
             }
 
-            const reservas = (await kv.get(CHAVE_RESERVAS)) || [];
+            const dadosStr = await client.get(CHAVE_RESERVAS);
+            const reservas = dadosStr ? JSON.parse(dadosStr) : [];
 
             for (const periodo of periodos) {
                 const conflito = reservas.find(r => r.espaco === espaco && r.data === data && r.periodo === periodo);
@@ -49,14 +64,15 @@ export default async function handler(req, res) {
             }));
 
             reservas.push(...novasReservas);
-            await kv.set(CHAVE_RESERVAS, reservas);
+            await client.set(CHAVE_RESERVAS, JSON.stringify(reservas));
 
             return res.status(201).json({ sucesso: true, mensagem: 'Espaço(s) reservado(s) com sucesso!' });
         }
 
         if (req.method === 'DELETE') {
             const { id, pin } = req.body || {};
-            const reservas = (await kv.get(CHAVE_RESERVAS)) || [];
+            const dadosStr = await client.get(CHAVE_RESERVAS);
+            const reservas = dadosStr ? JSON.parse(dadosStr) : [];
             const index = reservas.findIndex(r => r.id === id);
 
             if (index === -1) {
@@ -68,7 +84,7 @@ export default async function handler(req, res) {
             }
 
             reservas.splice(index, 1);
-            await kv.set(CHAVE_RESERVAS, reservas);
+            await client.set(CHAVE_RESERVAS, JSON.stringify(reservas));
 
             return res.status(200).json({ sucesso: true, mensagem: 'Reserva cancelada com sucesso!' });
         }
@@ -76,5 +92,9 @@ export default async function handler(req, res) {
         return res.status(405).json({ sucesso: false, erro: 'Método não permitido' });
     } catch (error) {
         return res.status(500).json({ sucesso: false, erro: 'Erro interno: ' + error.message });
+    } finally {
+        if (client) {
+            await client.quit();
+        }
     }
 }
