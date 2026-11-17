@@ -370,12 +370,12 @@
 
             <div class="login-field">
                 <label for="login-senha-escola">🔑 Senha da Escola</label>
-                <input type="password" id="login-senha-escola" placeholder="Digite a senha fornecida pela escola">
+                <input type="password" id="login-senha-escola" placeholder="Ex: 1524 (Ano de nascimento de Camões)">
             </div>
 
             <div class="login-field">
                 <label for="login-nome">👤 Seu Nome (Professor/a)</label>
-                <input type="text" id="login-nome" placeholder="Ex: Prof. Douglas">
+                <input type="text" id="login-nome" placeholder="Digite seu nome completo">
             </div>
 
             <div class="login-field">
@@ -421,13 +421,13 @@
     </footer>
 
     <script>
-        // SENHA MESTRA DA ESCOLA (pode alterar aqui se desejar)
-        const SENHA_ESCOLA = 'CAMOES2026';
+        // SENHA MESTRA DA ESCOLA (Ano de nascimento de Luís de Camões: 1524)
+        const SENHA_ESCOLA = '1524';
 
         const API_URL = '/api/reservas';
         let todasReservas = [];
         let adminAtivo = false;
-        let usuarioAtual = null; // { nome, pin }
+        let usuarioAtual = null;
 
         const espacosLista = [
             'Sala de Vídeo',
@@ -464,7 +464,6 @@
             setTimeout(() => { el.style.display = 'none'; }, 4500);
         }
 
-        // Verifica se há dados salvos neste aparelho para pré-preencher a tela de login
         function inicializarLogin() {
             const dadosSalvos = localStorage.getItem('camoes_usuario');
             if (dadosSalvos) {
@@ -478,13 +477,13 @@
         }
 
         function entrarNoSistema() {
-            const senhaDigitada = document.getElementById('login-senha-escola').value.trim().toUpperCase();
+            const senhaDigitada = document.getElementById('login-senha-escola').value.trim();
             const nome = document.getElementById('login-nome').value.trim();
             const pin = document.getElementById('login-pin').value.trim();
             const salvar = document.getElementById('login-salvar').checked;
 
-            if (senhaDigitada !== SENHA_ESCOLA.toUpperCase()) {
-                mostrarAlerta('Senha da escola incorreta. Verifique no grupo dos professores.', 'erro');
+            if (senhaDigitada !== SENHA_ESCOLA) {
+                mostrarAlerta('Senha da escola incorreta. (Dica: Ano de nascimento de Camões)', 'erro');
                 return;
             }
 
