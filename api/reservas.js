@@ -28,7 +28,6 @@ export default async function handler(req, res) {
 
             const reservas = (await kv.get(CHAVE_RESERVAS)) || [];
 
-            // Verifica conflitos para qualquer um dos períodos selecionados
             for (const periodo of periodos) {
                 const conflito = reservas.find(r => r.espaco === espaco && r.data === data && r.periodo === periodo);
                 if (conflito) {
