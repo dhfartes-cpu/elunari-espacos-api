@@ -1,100 +1,526 @@
-import { createClient } from 'redis';
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reserva de Espaços - E.E.E.B. Luís de Camões</title>
+    <style>
+        :root {
+            --bg: #e2e8f0;
+            --card: #ffffff;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --danger: #dc2626;
+            --danger-bg: #fef2f2;
+            --success: #16a34a;
+            --success-bg: #f0fdf4;
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: #cbd5e1;
+        }
+        * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            margin: 0 auto;
+            flex: 1;
+        }
+        header {
+            background: var(--primary);
+            color: white;
+            padding: 20px 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        header h1 { font-size: 1.4rem; margin: 0 0 4px 0; }
+        header p { color: #bfdbfe; font-size: 0.9rem; margin: 0; }
 
-const CHAVE_RESERVAS = 'elunari:espacos:reservas';
-const SENHA_ADMIN = '9999';
-
-async function getRedisClient() {
-    const url = process.env.STORAGE_URL || process.env.REDIS_URL || process.env.KV_URL;
-    if (!url) {
-        throw new Error('URL do banco de dados não encontrada nas variáveis da Vercel.');
-    }
-    const client = createClient({ url });
-    await client.connect();
-    return client;
-}
-
-export default async function handler(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
-    let client;
-    try {
-        client = await getRedisClient();
-
-        if (req.method === 'GET') {
-            const dadosStr = await client.get(CHAVE_RESERVAS);
-            const reservas = dadosStr ? JSON.parse(dadosStr) : [];
-            const reservasPublicas = reservas.map(({ pin, ...resto }) => resto);
-            return res.status(200).json({ sucesso: true, dados: reservasPublicas });
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+        }
+        .card h2 {
+            margin: 0 0 16px 0;
+            font-size: 1.15rem;
+            color: var(--text);
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 10px;
         }
 
-        if (req.method === 'POST') {
-            const { espaco, data, periodos, professor, pin } = req.body || {};
-
-            if (!espaco || !data || !periodos || !Array.isArray(periodos) || periodos.length === 0 || !professor || !pin) {
-                return res.status(400).json({ sucesso: false, erro: 'Preencha todos os campos e selecione pelo menos um período.' });
-            }
-
-            const dadosStr = await client.get(CHAVE_RESERVAS);
-            const reservas = dadosStr ? JSON.parse(dadosStr) : [];
-
-            for (const periodo of periodos) {
-                const conflito = reservas.find(r => r.espaco === espaco && r.data === data && r.periodo === periodo);
-                if (conflito) {
-                    return res.status(409).json({
-                        sucesso: false,
-                        erro: `O período "${periodo}" em ${espaco} já está reservado por ${conflito.professor}.`
-                    });
-                }
-            }
-
-            const grupoId = Date.now().toString();
-            const novasReservas = periodos.map(periodo => ({
-                id: `${grupoId}-${Math.random().toString(36).substr(2, 5)}`,
-                espaco,
-                data,
-                periodo,
-                professor: professor.trim(),
-                pin: pin.trim()
-            }));
-
-            reservas.push(...novasReservas);
-            await client.set(CHAVE_RESERVAS, JSON.stringify(reservas));
-
-            return res.status(201).json({ sucesso: true, mensagem: 'Espaço(s) reservado(s) com sucesso!' });
+        .calendario-box {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+        .calendario-box label {
+            font-size: 1rem;
+            color: var(--primary);
+            font-weight: 700;
+            margin: 0;
+        }
+        .calendario-box input[type="date"] {
+            padding: 12px 16px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            width: 100%;
+            max-width: 320px;
+            background: white;
+            border: 2px solid var(--primary);
+            border-radius: 8px;
+            color: var(--text);
+            cursor: pointer;
         }
 
-        if (req.method === 'DELETE') {
-            const { id, pin } = req.body || {};
-            const dadosStr = await client.get(CHAVE_RESERVAS);
-            const reservas = dadosStr ? JSON.parse(dadosStr) : [];
-            const index = reservas.findIndex(r => r.id === id);
-
-            if (index === -1) {
-                return res.status(404).json({ sucesso: false, erro: 'Reserva não encontrada.' });
-            }
-
-            if (reservas[index].pin !== pin.trim() && pin.trim() !== SENHA_ADMIN) {
-                return res.status(403).json({ sucesso: false, erro: 'PIN incorreto.' });
-            }
-
-            reservas.splice(index, 1);
-            await client.set(CHAVE_RESERVAS, JSON.stringify(reservas));
-
-            return res.status(200).json({ sucesso: true, mensagem: 'Reserva cancelada com sucesso!' });
+        .lista-espacos-grade {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .espaco-accordion {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: white;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+        .espaco-header {
+            background: #f8fafc;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1.05rem;
+            color: #1e293b;
+        }
+        .espaco-header:hover {
+            background: #f1f5f9;
+        }
+        .espaco-conteudo {
+            display: none;
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            background: #ffffff;
+        }
+        .espaco-accordion.ativo .espaco-conteudo {
+            display: block;
+        }
+        .espaco-accordion.ativo .espaco-header {
+            background: #eff6ff;
+            color: var(--primary);
         }
 
-        return res.status(405).json({ sucesso: false, erro: 'Método não permitido' });
-    } catch (error) {
-        return res.status(500).json({ sucesso: false, erro: 'Erro interno: ' + error.message });
-    } finally {
-        if (client) {
-            await client.quit();
+        .turno-titulo {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            margin: 12px 0 8px 0;
         }
-    }
-}
+        .turno-titulo:first-child { margin-top: 0; }
+
+        .periodos-check-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+            gap: 8px;
+        }
+        .periodo-checkbox-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #f8fafc;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .periodo-checkbox-label:hover {
+            background: #f1f5f9;
+        }
+        .periodo-checkbox-label.livre-item {
+            justify-content: flex-start;
+        }
+        .periodo-checkbox-label.ocupado {
+            background: #fef2f2;
+            border-color: #fca5a5;
+            color: #991b1b;
+            cursor: default;
+        }
+        .periodo-checkbox-label input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .ocupado-info {
+            font-size: 0.78rem;
+            display: block;
+            color: var(--danger);
+            font-weight: 600;
+        }
+
+        .painel-confirmacao {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px dashed var(--border);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+        }
+        .campo-grupo {
+            flex: 1;
+            min-width: 200px;
+        }
+        .campo-grupo label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .campo-grupo input {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-size: 0.95rem;
+        }
+        button.btn-confirmar {
+            padding: 11px 20px;
+            background: var(--success);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            height: 43px;
+        }
+        button.btn-confirmar:hover { background: #15803d; }
+
+        .btn-cancelar-mini {
+            background: white;
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .btn-cancelar-mini:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        .alerta {
+            padding: 14px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            display: none;
+        }
+        .alerta.erro { background: var(--danger-bg); border: 1px solid #fca5a5; color: var(--danger); }
+        .alerta.sucesso { background: var(--success-bg); border: 1px solid #86efac; color: var(--success); }
+
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 16px;
+            color: var(--muted);
+            font-size: 0.8rem;
+            border-top: 1px solid #cbd5e1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header onclick="ativarAdminSecreto()">
+            <h1>E.E.E.B. Luís de Camões</h1>
+            <p>Sistema de Reserva de Espaços Escolares</p>
+        </header>
+
+        <div id="alerta" class="alerta"></div>
+
+        <div class="card">
+            <div class="calendario-box">
+                <label for="filtro-data">📅 Passo 1: Selecione a Data da Reserva</label>
+                <input type="date" id="filtro-data" onchange="renderizarEspacos()">
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Passo 2: Escolha o Espaço e Marque os Períodos</h2>
+            <div id="lista-espacos" class="lista-espacos-grade">
+                <p style="color: var(--muted); text-align: center; padding: 20px;">Carregando espaços...</p>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        Desenvolvido por Elunari Tech • E.E.E.B. Luís de Camões
+    </footer>
+
+    <script>
+        const API_URL = '/api/reservas';
+        let todasReservas = [];
+        let adminAtivo = false;
+        let acordeonAbertoIndex = 0;
+
+        const espacosLista = [
+            'Sala de Vídeo',
+            'Laboratório de Informática',
+            'Laboratório de Ciências',
+            'Biblioteca',
+            'Quadra Esportiva'
+        ];
+
+        const periodosManha = [
+            'Manhã - 1º Período', 
+            'Manhã - 2º Período', 
+            'Manhã - 3º Período', 
+            'Manhã - 4º Período', 
+            'Manhã - 5º Período'
+        ];
+
+        const periodosTarde = [
+            'Tarde - 1º Período', 
+            'Tarde - 2º Período', 
+            'Tarde - 3º Período', 
+            'Tarde - 4º Período'
+        ];
+
+        const hojeISO = new Date().toISOString().split('T')[0];
+        document.getElementById('filtro-data').value = hojeISO;
+
+        function mostrarAlerta(msg, tipo) {
+            const el = document.getElementById('alerta');
+            el.textContent = msg;
+            el.className = 'alerta ' + tipo;
+            el.style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(() => { el.style.display = 'none'; }, 4500);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'F12') {
+                e.preventDefault();
+                ativarAdminSecreto();
+            }
+        });
+
+        function ativarAdminSecreto() {
+            const senha = prompt('Área restrita. Digite a senha de Administrador:');
+            if (senha === '9999') {
+                adminAtivo = true;
+                mostrarAlerta('Modo Administrador ativado!', 'sucesso');
+                renderizarEspacos();
+            } else if (senha) {
+                mostrarAlerta('Senha incorreta.', 'erro');
+            }
+        }
+
+        function toggleAccordion(headerEl, index) {
+            const accordion = headerEl.parentElement;
+            const isOpen = accordion.classList.contains('ativo');
+            document.querySelectorAll('.espaco-accordion').forEach(el => el.classList.remove('ativo'));
+            if (!isOpen) {
+                accordion.classList.add('ativo');
+                acordeonAbertoIndex = index;
+            } else {
+                acordeonAbertoIndex = -1;
+            }
+        }
+
+        function renderizarEspacos() {
+            const dataSelecionada = document.getElementById('filtro-data').value;
+            const container = document.getElementById('lista-espacos');
+            const reservasDoDia = todasReservas.filter(r => r.data === dataSelecionada);
+            const nomeSalvo = localStorage.getItem('prof_nome') || '';
+
+            container.innerHTML = espacosLista.map((espaco, index) => {
+                const reservasEspaco = reservasDoDia.filter(r => r.espaco === espaco);
+                const totalOcupados = reservasEspaco.length;
+
+                const manhaHtml = periodosManha.map(periodo => {
+                    const res = reservasEspaco.find(r => r.periodo === periodo);
+                    const nomeCurto = periodo.replace('Manhã - ', '');
+                    if (res) {
+                        return `
+                            <div class="periodo-checkbox-label ocupado">
+                                <div>
+                                    <span>❌ ${nomeCurto}</span>
+                                    <span class="ocupado-info">Prof. ${res.professor}</span>
+                                </div>
+                                <button type="button" class="btn-cancelar-mini" onclick="cancelar('${res.id}')">Cancelar</button>
+                            </div>
+                        `;
+                    } else {
+                        return `
+                            <label class="periodo-checkbox-label livre-item">
+                                <input type="checkbox" name="per-${index}" value="${periodo}">
+                                <span>${nomeCurto} (Livre)</span>
+                            </label>
+                        `;
+                    }
+                }).join('');
+
+                const tardeHtml = periodosTarde.map(periodo => {
+                    const res = reservasEspaco.find(r => r.periodo === periodo);
+                    const nomeCurto = periodo.replace('Tarde - ', '');
+                    if (res) {
+                        return `
+                            <div class="periodo-checkbox-label ocupado">
+                                <div>
+                                    <span>❌ ${nomeCurto}</span>
+                                    <span class="ocupado-info">Prof. ${res.professor}</span>
+                                </div>
+                                <button type="button" class="btn-cancelar-mini" onclick="cancelar('${res.id}')">Cancelar</button>
+                            </div>
+                        `;
+                    } else {
+                        return `
+                            <label class="periodo-checkbox-label livre-item">
+                                <input type="checkbox" name="per-${index}" value="${periodo}">
+                                <span>${nomeCurto} (Livre)</span>
+                            </label>
+                        `;
+                    }
+                }).join('');
+
+                return `
+                    <div class="espaco-accordion ${index === acordeonAbertoIndex ? 'ativo' : ''}" id="acordeon-${index}">
+                        <div class="espaco-header" onclick="toggleAccordion(this, ${index})">
+                            <span>📍 ${espaco}</span>
+                            <span style="font-size: 0.85rem; color: var(--muted);">${totalOcupados} horário(s) ocupado(s)</span>
+                        </div>
+                        <div class="espaco-conteudo">
+                            <div class="turno-titulo">Manhã (5 Períodos)</div>
+                            <div class="periodos-check-grid">
+                                ${manhaHtml}
+                            </div>
+
+                            <div class="turno-titulo" style="margin-top: 16px;">Tarde (4 Períodos)</div>
+                            <div class="periodos-check-grid">
+                                ${tardeHtml}
+                            </div>
+
+                            <div class="painel-confirmacao">
+                                <div class="campo-grupo">
+                                    <label>Seu Nome (Professor/a)</label>
+                                    <input type="text" id="prof-${index}" value="${nomeSalvo}" placeholder="Seu nome completo">
+                                </div>
+                                <div class="campo-grupo" style="max-width: 160px;">
+                                    <label>PIN (4 dígitos)</label>
+                                    <input type="password" id="pin-${index}" maxlength="4" inputmode="numeric" placeholder="Ex: 1234">
+                                </div>
+                                <button type="button" class="btn-confirmar" onclick="agendar('${espaco}', ${index})">Confirmar Reserva</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function carregarReservas() {
+            try {
+                const res = await fetch(API_URL);
+                const json = await res.json();
+                todasReservas = json.dados || [];
+                renderizarEspacos();
+            } catch (e) {
+                todasReservas = [];
+                renderizarEspacos();
+            }
+        }
+
+        async function agendar(espaco, index) {
+            const data = document.getElementById('filtro-data').value;
+            const checkboxes = document.querySelectorAll(`input[name="per-${index}"]:checked`);
+            const professor = document.getElementById(`prof-${index}`).value.trim();
+            const pin = document.getElementById(`pin-${index}`).value.trim();
+
+            if (checkboxes.length === 0) {
+                mostrarAlerta('Selecione pelo menos um período para reservar.', 'erro');
+                return;
+            }
+
+            if (!data || !professor || pin.length !== 4) {
+                mostrarAlerta('Preencha seu nome e crie um PIN numérico de 4 dígitos.', 'erro');
+                return;
+            }
+
+            localStorage.setItem('prof_nome', professor);
+            acordeonAbertoIndex = index;
+
+            const periodosSelecionados = Array.from(checkboxes).map(cb => cb.value);
+
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ espaco, data, periodos: periodosSelecionados, professor, pin })
+            });
+
+            const json = await res.json();
+            if (json.sucesso) {
+                mostrarAlerta(json.mensagem, 'sucesso');
+                carregarReservas();
+            } else {
+                mostrarAlerta(json.erro, 'erro');
+            }
+        }
+
+        async function cancelar(id) {
+            let pin = '';
+            if (adminAtivo) {
+                if (!confirm('Liberar este horário como Administrador?')) return;
+                pin = '9999';
+            } else {
+                pin = prompt('Para cancelar, digite o PIN de 4 dígitos criado nesta reserva:');
+                if (!pin) return;
+            }
+
+            const res = await fetch(API_URL, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, pin })
+            });
+
+            const json = await res.json();
+            if (json.sucesso) {
+                mostrarAlerta(json.mensagem, 'sucesso');
+                carregarReservas();
+            } else {
+                mostrarAlerta(json.erro, 'erro');
+            }
+        }
+
+        carregarReservas();
+    </script>
+</body>
+</html>
