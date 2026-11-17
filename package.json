@@ -1,13 +1,8 @@
 {
   "name": "elunari-espacos-api",
   "version": "1.0.0",
-  "description": "API e App de Reservas de Espaços Escolares - Elunari Tech",
-  "scripts": {
-    "test": "echo \"No test specified\""
-  },
-  "author": "Douglas França",
-  "license": "UNLICENSED",
+  "type": "module",
   "dependencies": {
-    "@vercel/kv": "^3.0.0"
+    "redis": "^4.6.13"
   }
 }
