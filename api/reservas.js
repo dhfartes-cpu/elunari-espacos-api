@@ -113,6 +113,7 @@
             font-weight: 600;
             font-size: 1.05rem;
             color: #1e293b;
+            user-select: none;
         }
         .espaco-header:hover {
             background: #f1f5f9;
@@ -142,34 +143,31 @@
 
         .periodos-check-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
             gap: 8px;
         }
-        .periodo-checkbox-label {
+        .periodo-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 8px;
             padding: 10px 12px;
             border-radius: 8px;
             border: 1px solid var(--border);
             background: #f8fafc;
             font-size: 0.9rem;
+        }
+        .periodo-item.livre {
             cursor: pointer;
         }
-        .periodo-checkbox-label:hover {
+        .periodo-item.livre:hover {
             background: #f1f5f9;
         }
-        .periodo-checkbox-label.livre-item {
-            justify-content: flex-start;
-        }
-        .periodo-checkbox-label.ocupado {
+        .periodo-item.ocupado {
             background: #fef2f2;
             border-color: #fca5a5;
             color: #991b1b;
-            cursor: default;
         }
-        .periodo-checkbox-label input {
+        .periodo-item input {
             width: 18px;
             height: 18px;
             cursor: pointer;
@@ -270,7 +268,7 @@
         <div class="card">
             <div class="calendario-box">
                 <label for="filtro-data">📅 Passo 1: Selecione a Data da Reserva</label>
-                <input type="date" id="filtro-data" onchange="renderizarEspacos()">
+                <input type="date" id="filtro-data" onchange="carregarReservas()">
             </div>
         </div>
 
@@ -290,7 +288,7 @@
         const API_URL = '/api/reservas';
         let todasReservas = [];
         let adminAtivo = false;
-        let acordeonAbertoIndex = 0;
+        let espacoAbertoId = 0;
 
         const espacosLista = [
             'Sala de Vídeo',
@@ -345,15 +343,20 @@
             }
         }
 
-        function toggleAccordion(headerEl, index) {
-            const accordion = headerEl.parentElement;
-            const isOpen = accordion.classList.contains('ativo');
-            document.querySelectorAll('.espaco-accordion').forEach(el => el.classList.remove('ativo'));
-            if (!isOpen) {
-                accordion.classList.add('ativo');
-                acordeonAbertoIndex = index;
-            } else {
-                acordeonAbertoIndex = -1;
+        function toggleAccordion(index) {
+            espacoAbertoId = (espacoAbertoId === index) ? -1 : index;
+            renderizarEspacos();
+        }
+
+        async function carregarReservas() {
+            try {
+                const res = await fetch(API_URL);
+                const json = await res.json();
+                todasReservas = json.dados || [];
+                renderizarEspacos();
+            } catch (e) {
+                todasReservas = [];
+                renderizarEspacos();
             }
         }
 
@@ -366,25 +369,28 @@
             container.innerHTML = espacosLista.map((espaco, index) => {
                 const reservasEspaco = reservasDoDia.filter(r => r.espaco === espaco);
                 const totalOcupados = reservasEspaco.length;
+                const estaAberto = (espacoAbertoId === index);
 
                 const manhaHtml = periodosManha.map(periodo => {
                     const res = reservasEspaco.find(r => r.periodo === periodo);
                     const nomeCurto = periodo.replace('Manhã - ', '');
                     if (res) {
                         return `
-                            <div class="periodo-checkbox-label ocupado">
+                            <div class="periodo-item ocupado">
                                 <div>
                                     <span>❌ ${nomeCurto}</span>
                                     <span class="ocupado-info">Prof. ${res.professor}</span>
                                 </div>
-                                <button type="button" class="btn-cancelar-mini" onclick="cancelar('${res.id}')">Cancelar</button>
+                                <button type="button" class="btn-cancelar-mini" onclick="cancelarReserva('${res.id}')">Cancelar</button>
                             </div>
                         `;
                     } else {
                         return `
-                            <label class="periodo-checkbox-label livre-item">
-                                <input type="checkbox" name="per-${index}" value="${periodo}">
-                                <span>${nomeCurto} (Livre)</span>
+                            <label class="periodo-item livre">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" name="per-${index}" value="${periodo}">
+                                    <span>${nomeCurto} (Livre)</span>
+                                </div>
                             </label>
                         `;
                     }
@@ -395,27 +401,29 @@
                     const nomeCurto = periodo.replace('Tarde - ', '');
                     if (res) {
                         return `
-                            <div class="periodo-checkbox-label ocupado">
+                            <div class="periodo-item ocupado">
                                 <div>
                                     <span>❌ ${nomeCurto}</span>
                                     <span class="ocupado-info">Prof. ${res.professor}</span>
                                 </div>
-                                <button type="button" class="btn-cancelar-mini" onclick="cancelar('${res.id}')">Cancelar</button>
+                                <button type="button" class="btn-cancelar-mini" onclick="cancelarReserva('${res.id}')">Cancelar</button>
                             </div>
                         `;
                     } else {
                         return `
-                            <label class="periodo-checkbox-label livre-item">
-                                <input type="checkbox" name="per-${index}" value="${periodo}">
-                                <span>${nomeCurto} (Livre)</span>
+                            <label class="periodo-item livre">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" name="per-${index}" value="${periodo}">
+                                    <span>${nomeCurto} (Livre)</span>
+                                </div>
                             </label>
                         `;
                     }
                 }).join('');
 
                 return `
-                    <div class="espaco-accordion ${index === acordeonAbertoIndex ? 'ativo' : ''}" id="acordeon-${index}">
-                        <div class="espaco-header" onclick="toggleAccordion(this, ${index})">
+                    <div class="espaco-accordion ${estaAberto ? 'ativo' : ''}">
+                        <div class="espaco-header" onclick="toggleAccordion(${index})">
                             <span>📍 ${espaco}</span>
                             <span style="font-size: 0.85rem; color: var(--muted);">${totalOcupados} horário(s) ocupado(s)</span>
                         </div>
@@ -439,7 +447,7 @@
                                     <label>PIN (4 dígitos)</label>
                                     <input type="password" id="pin-${index}" maxlength="4" inputmode="numeric" placeholder="Ex: 1234">
                                 </div>
-                                <button type="button" class="btn-confirmar" onclick="agendar('${espaco}', ${index})">Confirmar Reserva</button>
+                                <button type="button" class="btn-confirmar" onclick="realizarAgendamento('${espaco}', ${index})">Confirmar Reserva</button>
                             </div>
                         </div>
                     </div>
@@ -447,23 +455,14 @@
             }).join('');
         }
 
-        async function carregarReservas() {
-            try {
-                const res = await fetch(API_URL);
-                const json = await res.json();
-                todasReservas = json.dados || [];
-                renderizarEspacos();
-            } catch (e) {
-                todasReservas = [];
-                renderizarEspacos();
-            }
-        }
-
-        async function agendar(espaco, index) {
+        async function realizarAgendamento(espaco, index) {
             const data = document.getElementById('filtro-data').value;
             const checkboxes = document.querySelectorAll(`input[name="per-${index}"]:checked`);
-            const professor = document.getElementById(`prof-${index}`).value.trim();
-            const pin = document.getElementById(`pin-${index}`).value.trim();
+            const professorInput = document.getElementById(`prof-${index}`);
+            const pinInput = document.getElementById(`pin-${index}`);
+
+            const professor = professorInput ? professorInput.value.trim() : '';
+            const pin = pinInput ? pinInput.value.trim() : '';
 
             if (checkboxes.length === 0) {
                 mostrarAlerta('Selecione pelo menos um período para reservar.', 'erro');
@@ -476,26 +475,30 @@
             }
 
             localStorage.setItem('prof_nome', professor);
-            acordeonAbertoIndex = index;
+            espacoAbertoId = index;
 
             const periodosSelecionados = Array.from(checkboxes).map(cb => cb.value);
 
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ espaco, data, periodos: periodosSelecionados, professor, pin })
-            });
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ espaco, data, periodos: periodosSelecionados, professor, pin })
+                });
 
-            const json = await res.json();
-            if (json.sucesso) {
-                mostrarAlerta(json.mensagem, 'sucesso');
-                carregarReservas();
-            } else {
-                mostrarAlerta(json.erro, 'erro');
+                const json = await res.json();
+                if (json.sucesso) {
+                    mostrarAlerta(json.mensagem, 'sucesso');
+                    carregarReservas();
+                } else {
+                    mostrarAlerta(json.erro, 'erro');
+                }
+            } catch (err) {
+                mostrarAlerta('Erro de conexão ao salvar reserva.', 'erro');
             }
         }
 
-        async function cancelar(id) {
+        async function cancelarReserva(id) {
             let pin = '';
             if (adminAtivo) {
                 if (!confirm('Liberar este horário como Administrador?')) return;
@@ -505,18 +508,22 @@
                 if (!pin) return;
             }
 
-            const res = await fetch(API_URL, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, pin })
-            });
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, pin })
+                });
 
-            const json = await res.json();
-            if (json.sucesso) {
-                mostrarAlerta(json.mensagem, 'sucesso');
-                carregarReservas();
-            } else {
-                mostrarAlerta(json.erro, 'erro');
+                const json = await res.json();
+                if (json.sucesso) {
+                    mostrarAlerta(json.mensagem, 'sucesso');
+                    carregarReservas();
+                } else {
+                    mostrarAlerta(json.erro, 'erro');
+                }
+            } catch (err) {
+                mostrarAlerta('Erro de conexão ao cancelar reserva.', 'erro');
             }
         }
 
