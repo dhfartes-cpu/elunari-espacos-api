@@ -370,7 +370,7 @@
 
             <div class="login-field">
                 <label for="login-senha-escola">🔑 Senha da Escola</label>
-                <input type="password" id="login-senha-escola" placeholder="Ex: 1524 (Ano de nascimento de Camões)">
+                <input type="password" id="login-senha-escola" placeholder="Digite a senha fornecida pela escola">
             </div>
 
             <div class="login-field">
@@ -421,8 +421,8 @@
     </footer>
 
     <script>
-        // SENHA MESTRA DA ESCOLA (Ano de nascimento de Luís de Camões: 1524)
-        const SENHA_ESCOLA = '1524';
+        // SENHA MESTRA DA ESCOLA
+        const SENHA_ESCOLA = 'Bandeirantes@55';
 
         const API_URL = '/api/reservas';
         let todasReservas = [];
@@ -483,7 +483,7 @@
             const salvar = document.getElementById('login-salvar').checked;
 
             if (senhaDigitada !== SENHA_ESCOLA) {
-                mostrarAlerta('Senha da escola incorreta. (Dica: Ano de nascimento de Camões)', 'erro');
+                mostrarAlerta('Senha da escola incorreta. Solicite o código correto.', 'erro');
                 return;
             }
 
