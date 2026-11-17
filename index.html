@@ -62,7 +62,6 @@
             padding-bottom: 10px;
         }
 
-        /* CALENDÁRIO GRANDE E DESTACADO */
         .calendario-box {
             display: flex;
             flex-direction: column;
@@ -92,7 +91,6 @@
             cursor: pointer;
         }
 
-        /* ESPAÇOS EM FORMATO DE ACORDEON / BLOCOS COMPACTOS */
         .lista-espacos-grade {
             display: flex;
             flex-direction: column;
@@ -182,7 +180,6 @@
             font-weight: 600;
         }
 
-        /* FORMULÁRIO DE DADOS ABAIXO DOS PERÍODOS */
         .painel-confirmacao {
             margin-top: 16px;
             padding-top: 16px;
@@ -265,7 +262,6 @@
 
         <div id="alerta" class="alerta"></div>
 
-        <!-- CALENDÁRIO GERAL -->
         <div class="card">
             <div class="calendario-box">
                 <label for="filtro-data">📅 Passo 1: Selecione a Data da Reserva</label>
@@ -273,7 +269,6 @@
             </div>
         </div>
 
-        <!-- LISTA DE ESPAÇOS EM BLOCOS COMPACTOS -->
         <div class="card">
             <h2>Passo 2: Escolha o Espaço e Marque os Períodos</h2>
             <div id="lista-espacos" class="lista-espacos-grade">
@@ -314,7 +309,6 @@
             'Tarde - 4º Período'
         ];
 
-        // Inicializa com a data de hoje
         const hojeISO = new Date().toISOString().split('T')[0];
         document.getElementById('filtro-data').value = hojeISO;
 
@@ -348,11 +342,7 @@
         function toggleAccordion(headerEl) {
             const accordion = headerEl.parentElement;
             const isOpen = accordion.classList.contains('ativo');
-            
-            // Fecha todos
             document.querySelectorAll('.espaco-accordion').forEach(el => el.classList.remove('ativo'));
-            
-            // Se não estava aberto, abre
             if (!isOpen) {
                 accordion.classList.add('ativo');
             }
@@ -362,15 +352,12 @@
             const dataSelecionada = document.getElementById('filtro-data').value;
             const container = document.getElementById('lista-espacos');
             const reservasDoDia = todasReservas.filter(r => r.data === dataSelecionada);
-
-            // Nome do professor salvo no navegador
             const nomeSalvo = localStorage.getItem('prof_nome') || '';
 
             container.innerHTML = espacosLista.map((espaco, index) => {
                 const reservasEspaco = reservasDoDia.filter(r => r.espaco === espaco);
                 const totalOcupados = reservasEspaco.length;
 
-                // Monta checkboxes da manhã
                 const manhaHtml = periodosManha.map(periodo => {
                     const res = reservasEspaco.find(r => r.periodo === periodo);
                     const nomeCurto = periodo.replace('Manhã - ', '');
@@ -391,7 +378,6 @@
                     }
                 }).join('');
 
-                // Monta checkboxes da tarde
                 const tardeHtml = periodosTarde.map(periodo => {
                     const res = reservasEspaco.find(r => r.periodo === periodo);
                     const nomeCurto = periodo.replace('Tarde - ', '');
