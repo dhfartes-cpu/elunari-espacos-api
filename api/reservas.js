@@ -353,7 +353,6 @@
             const dataSelecionada = document.getElementById('filtro-data').value;
             const container = document.getElementById('lista-espacos');
             const reservasDoDia = todasReservas.filter(r => r.data === dataSelecionada);
-            const nomeSalvo = localStorage.getItem('prof_nome') || '';
 
             container.innerHTML = espacosLista.map((espaco, index) => {
                 const reservasEspaco = reservasDoDia.filter(r => r.espaco === espaco);
@@ -419,7 +418,7 @@
                             <div class="painel-confirmacao">
                                 <div class="campo-grupo">
                                     <label>Seu Nome (Professor/a)</label>
-                                    <input type="text" id="prof-${index}" value="${nomeSalvo}" placeholder="Seu nome completo">
+                                    <input type="text" id="prof-${index}" placeholder="Seu nome completo">
                                 </div>
                                 <div class="campo-grupo" style="max-width: 160px;">
                                     <label>PIN (4 dígitos)</label>
@@ -448,8 +447,11 @@
         async function agendar(espaco, index) {
             const data = document.getElementById('filtro-data').value;
             const checkboxes = document.querySelectorAll(`input[name="per-${index}"]:checked`);
-            const professor = document.getElementById(`prof-${index}`).value.trim();
-            const pin = document.getElementById(`pin-${index}`).value.trim();
+            const professorInput = document.getElementById(`prof-${index}`);
+            const pinInput = document.getElementById(`pin-${index}`);
+
+            const professor = professorInput ? professorInput.value.trim() : '';
+            const pin = pinInput ? pinInput.value.trim() : '';
 
             if (checkboxes.length === 0) {
                 mostrarAlerta('Selecione pelo menos um período para reservar.', 'erro');
@@ -461,22 +463,24 @@
                 return;
             }
 
-            localStorage.setItem('prof_nome', professor);
-
             const periodosSelecionados = Array.from(checkboxes).map(cb => cb.value);
 
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ espaco, data, periodos: periodosSelecionados, professor, pin })
-            });
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ espaco, data, periodos: periodosSelecionados, professor, pin })
+                });
 
-            const json = await res.json();
-            if (json.sucesso) {
-                mostrarAlerta(json.mensagem, 'sucesso');
-                carregarReservas();
-            } else {
-                mostrarAlerta(json.erro, 'erro');
+                const json = await res.json();
+                if (json.sucesso) {
+                    mostrarAlerta(json.mensagem, 'sucesso');
+                    carregarReservas();
+                } else {
+                    mostrarAlerta(json.erro, 'erro');
+                }
+            } catch (err) {
+                mostrarAlerta('Erro de conexão ao salvar reserva.', 'erro');
             }
         }
 
@@ -490,18 +494,22 @@
                 if (!pin) return;
             }
 
-            const res = await fetch(API_URL, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, pin })
-            });
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, pin })
+                });
 
-            const json = await res.json();
-            if (json.sucesso) {
-                mostrarAlerta(json.mensagem, 'sucesso');
-                carregarReservas();
-            } else {
-                mostrarAlerta(json.erro, 'erro');
+                const json = await res.json();
+                if (json.sucesso) {
+                    mostrarAlerta(json.mensagem, 'sucesso');
+                    carregarReservas();
+                } else {
+                    mostrarAlerta(json.erro, 'erro');
+                }
+            } catch (err) {
+                mostrarAlerta('Erro de conexão ao cancelar reserva.', 'erro');
             }
         }
 
